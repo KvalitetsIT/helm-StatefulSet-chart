@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "statefulset.fullname" . }}
+  labels:
+    {{- include "statefulset.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "statefulset.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "statefulset.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if (.Values.statefulset.hostAliases) }}
+      hostAliases:
+        {{- range $ip , $hostnames := .Values.statefulset.hostAliases }}
+        - ip: {{ $ip }}
+          hostnames:
+          {{- range $hostnames }}
+          - {{ . }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env: {{ if (not .Values.statefulset.env) }}[ ]{{ end }}
+
+          {{- range $key, $value := .Values.statefulset.env }}
+          - name: {{ $key }}
+           {{- if (not $value.type) }}
+           value: {{ $value.value | quote }}
+           {{- else if eq $value.type "fieldPath" }}
+           valueFrom:
+             fieldRef:
+               fieldPath: {{ $value.value }}
+           {{- else if eq $value.type "secretKeyRef" }}
+           valueFrom:
+             secretKeyRef:
+               key: {{ $value.key }}
+               name: {{ $value.name }}
+           {{- else if eq $value.type "configMapKeyRef" }}
+           valueFrom:
+             configMapKeyRef:
+               key: {{ $value.key }}
+               name: {{ $value.name }}
+           {{- end }}
+          {{- end }}
+          ports:
+            - name: container-port
+              containerPort: {{ .Values.statefulset.containerPort | default "80" }}
+            {{- range $name, $port := .Values.statefulset.extraContainerPort }}
+            - name: {{ $name }}
+              containerPort: {{ $port }}
+            {{- end }}
+          command: [
+            {{ range $index, $cmd := .Values.statefulset.commands }}
+            {{- if $index }},{{- end }}
+            {{ $cmd | quote }}
+            {{- end }}
+          ]
+          args: [
+            {{- range $index, $arg := .Values.statefulset.args }}
+            {{- if $index }},{{- end }}
+            {{ $arg | quote }}
+            {{- end }}
+          ]
+          {{- if (.Values.statefulset.livenessProbe) }}
+          livenessProbe:
+            {{- toYaml .Values.statefulset.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if (.Values.statefulset.readinessProbe) }}
+          readinessProbe:
+            {{- toYaml .Values.statefulset.readinessProbe | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: volume
+              mountPath: {{ .Values.statefulset.pvc.mountPath }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      {{- else }}
+      affinity:
+        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "component" "master" "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" "master" "context" $) | nindent 10 }}
+        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: volume
+      spec:
+        accessModes:
+          - {{ .Values.statefulset.pvc.accessMode | default "ReadWriteOnce" }}
+        resources:
+          requests:
+            storage: {{ .Values.statefulset.pvc.request | default "2Gi" }}
+        storageClassName: {{ .Values.statefulset.pvc.storageclass | default "longhorn"}}
