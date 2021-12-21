@@ -6,6 +6,8 @@ metadata:
     {{- include "statefulset.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  serviceName: {{ include "statefulset.fullname" . }}
+  podManagementPolicy: {{ .Values.statefulset.podManagementPolicy | default "OrderedReady" }}
   selector:
     matchLabels:
       {{- include "statefulset.selectorLabels" . | nindent 6 }}
