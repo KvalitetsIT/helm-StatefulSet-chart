@@ -42,25 +42,25 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env: {{ if (not .Values.statefulset.env) }}[ ]{{ end }}
 
-          {{- range $key, $value := .Values.statefulset.env }}
-          - name: {{ $key }}
-           {{- if (not $value.type) }}
-           value: {{ $value.value | quote }}
-           {{- else if eq $value.type "fieldPath" }}
-           valueFrom:
-             fieldRef:
-               fieldPath: {{ $value.value }}
-           {{- else if eq $value.type "secretKeyRef" }}
-           valueFrom:
-             secretKeyRef:
-               key: {{ $value.key }}
-               name: {{ $value.name }}
-           {{- else if eq $value.type "configMapKeyRef" }}
-           valueFrom:
-             configMapKeyRef:
-               key: {{ $value.key }}
-               name: {{ $value.name }}
-           {{- end }}
+            {{- range $key, $value := .Values.statefulset.env }}
+            - name: {{ $key }}
+             {{- if (not $value.type) }}
+              value: {{ $value.value | quote }}
+             {{- else if eq $value.type "fieldPath" }}
+              valueFrom:
+                fieldRef:
+                  fieldPath: {{ $value.value }}
+             {{- else if eq $value.type "secretKeyRef" }}
+              valueFrom:
+                secretKeyRef:
+                  key: {{ $value.key }}
+                  name: {{ $value.name }}
+             {{- else if eq $value.type "configMapKeyRef" }}
+              valueFrom:
+                configMapKeyRef:
+                  key: {{ $value.key }}
+                  name: {{ $value.name }}
+             {{- end }}
           {{- end }}
           ports:
             - name: container-port
